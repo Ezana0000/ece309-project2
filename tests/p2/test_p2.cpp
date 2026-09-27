@@ -84,10 +84,10 @@ void save_transcript(const Conversation& conv, const std::string& path) {
     }
 }
 
-Conversation make_conv(int n) {
+Conversation make_conv(int n, Role role = Role::User) {
     Conversation c;
     for (int i = 0; i < n; ++i) {
-        c.append(Message(Role::User, "msg " + std::to_string(i)));
+        c.append(Message(role, "msg " + std::to_string(i)));
     }
     return c;
 }
@@ -169,7 +169,7 @@ void test_system_message_first() {
 
 // Spec item 3: copies are deep.
 void test_copy_is_deep() {
-    Conversation a = make_conv(5);
+    Conversation a = make_conv(5, Role::Assistant);
 
     Conversation b(a);
     assert(b.size() == 5);
@@ -177,6 +177,7 @@ void test_copy_is_deep() {
     for (std::size_t i = 0; i < a.size(); ++i) {
         assert(&b.at(i) != &a.at(i));
         assert(b.at(i).content() == a.at(i).content());
+        assert(b.at(i).role() == Role::Assistant);
     }
 
     b.append(Message(Role::User, "only in b"));
