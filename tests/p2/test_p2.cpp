@@ -56,10 +56,19 @@ private:
     std::string text_;
 };
 
-void write_file(const std::string& path, const std::string& contents) {
-    std::ofstream f(path);
-    f << contents;
-}
+class TempFile {
+public:
+    TempFile(const std::string& path, const std::string& contents) : path_(path) {
+        std::ofstream f(path_);
+        f << contents;
+    }
+    ~TempFile() { std::remove(path_.c_str()); }
+
+    const std::string& path() const { return path_; }
+
+private:
+    std::string path_;
+};
 
 // Copy of save_transcript() from main.cpp, since that one isn't accessible here.
 void save_transcript(const Conversation& conv, const std::string& path) {
@@ -143,16 +152,15 @@ void test_system_message_first() {
         assert(c.at(i).role() != Role::System);
     }
 
-    write_file("test_tmp_sys.script",
-               "role: assistant\nhi\n---\nrole: assistant\nbye" + kSentinel + "\n");
+    TempFile script("test_tmp_sys.script",
+                    "role: assistant\nhi\n---\nrole: assistant\nbye" + kSentinel + "\n");
     HarnessConfig cfg;
     cfg.system_message = "You are a test.";
-    Harness h(std::make_unique<ScriptedModelClient>("test_tmp_sys.script"), cfg);
+    Harness h(std::make_unique<ScriptedModelClient>(script.path()), cfg);
     std::string lines[] = {"hello", "goodbye"};
     FakeInput in(lines, 2);
     CaptureOutput out;
     h.run(in, out);
-    std::remove("test_tmp_sys.script");
 
     assert(h.conversation().at(0).role() == Role::System);
     assert(h.conversation().at(0).content() == "You are a test.");
@@ -349,17 +357,16 @@ void test_scanner_bounded_memory() {
 
 // Spec item 10: stops with TurnLimit after max_turns.
 void test_harness_turn_limit() {
-    write_file("test_tmp_turns.script",
-               "role: assistant\nr1\n---\nrole: assistant\nr2\n---\n"
-               "role: assistant\nr3\n---\nrole: assistant\nr4\n");
+    TempFile script("test_tmp_turns.script",
+                    "role: assistant\nr1\n---\nrole: assistant\nr2\n---\n"
+                    "role: assistant\nr3\n---\nrole: assistant\nr4\n");
     HarnessConfig cfg;
     cfg.max_turns = 2;
-    Harness h(std::make_unique<ScriptedModelClient>("test_tmp_turns.script"), cfg);
+    Harness h(std::make_unique<ScriptedModelClient>(script.path()), cfg);
     std::string lines[] = {"a", "b", "c", "d"};
     FakeInput in(lines, 4);
     CaptureOutput out;
     StopReason r = h.run(in, out);
-    std::remove("test_tmp_turns.script");
 
     assert(r.kind == StopReason::Kind::TurnLimit);
     assert(h.conversation().size() == 4);
@@ -369,16 +376,15 @@ void test_harness_turn_limit() {
 
 // Spec item 11: halts on the sentinel turn and never prints the sentinel.
 void test_harness_sentinel_halt() {
-    write_file("test_tmp_sentinel.script",
-               "chunk: 3\nrole: assistant\nStill here.\n---\n"
-               "chunk: 3\nrole: assistant\nGoodbye." + kSentinel + "IGNORED\n---\n"
-               "role: assistant\nnever reached\n");
-    Harness h(std::make_unique<ScriptedModelClient>("test_tmp_sentinel.script"), HarnessConfig{});
+    TempFile script("test_tmp_sentinel.script",
+                    "chunk: 3\nrole: assistant\nStill here.\n---\n"
+                    "chunk: 3\nrole: assistant\nGoodbye." + kSentinel + "IGNORED\n---\n"
+                    "role: assistant\nnever reached\n");
+    Harness h(std::make_unique<ScriptedModelClient>(script.path()), HarnessConfig{});
     std::string lines[] = {"hello", "bye", "extra"};
     FakeInput in(lines, 3);
     CaptureOutput out;
     StopReason r = h.run(in, out);
-    std::remove("test_tmp_sentinel.script");
 
     assert(r.kind == StopReason::Kind::Sentinel);
     assert(h.conversation().size() == 4);
@@ -391,9 +397,9 @@ void test_harness_sentinel_halt() {
 
 // EOF gives UserExit and running out of script gives ClientError.
 void test_harness_eof_and_client_error() {
-    write_file("test_tmp_eof.script", "role: assistant\nonly reply\n");
+    TempFile script("test_tmp_eof.script", "role: assistant\nonly reply\n");
 
-    Harness h1(std::make_unique<ScriptedModelClient>("test_tmp_eof.script"), HarnessConfig{});
+    Harness h1(std::make_unique<ScriptedModelClient>(script.path()), HarnessConfig{});
     std::string lines1[] = {"one"};
     FakeInput in1(lines1, 1);
     CaptureOutput out1;
@@ -401,27 +407,25 @@ void test_harness_eof_and_client_error() {
     assert(r1.kind == StopReason::Kind::UserExit);
     assert(h1.conversation().size() == 2);
 
-    Harness h2(std::make_unique<ScriptedModelClient>("test_tmp_eof.script"), HarnessConfig{});
+    Harness h2(std::make_unique<ScriptedModelClient>(script.path()), HarnessConfig{});
     std::string lines2[] = {"one", "two"};
     FakeInput in2(lines2, 2);
     CaptureOutput out2;
     StopReason r2 = h2.run(in2, out2);
     assert(r2.kind == StopReason::Kind::ClientError);
     assert(h2.conversation().size() == 3);
-
-    std::remove("test_tmp_eof.script");
 }
 
 // Spec item 12: save a session, replay it, and check both match.
 void test_transcript_round_trip() {
-    write_file("test_tmp_rt.script",
-               "role: system\nBe concise.\n---\n"
-               "chunk: 5\nrole: assistant\nI am doing well, thank you!\n---\n"
-               "chunk: 4\nrole: assistant\nSure thing.\n---\n"
-               "chunk: 6\nrole: assistant\nGoodbye!" + kSentinel + "\n");
+    TempFile script("test_tmp_rt.script",
+                    "role: system\nBe concise.\n---\n"
+                    "chunk: 5\nrole: assistant\nI am doing well, thank you!\n---\n"
+                    "chunk: 4\nrole: assistant\nSure thing.\n---\n"
+                    "chunk: 6\nrole: assistant\nGoodbye!" + kSentinel + "\n");
     std::string lines[] = {"hello", "can you help?", "bye"};
 
-    auto scripted = std::make_unique<ScriptedModelClient>("test_tmp_rt.script");
+    auto scripted = std::make_unique<ScriptedModelClient>(script.path());
     HarnessConfig cfg1;
     cfg1.system_message = scripted->system_message();
     Harness original(std::move(scripted), cfg1);
@@ -439,7 +443,6 @@ void test_transcript_round_trip() {
     FakeInput in2(lines, 3);
     CaptureOutput out2;
     StopReason r2 = replayed.run(in2, out2);
-    std::remove("test_tmp_rt.script");
     std::remove("test_tmp_transcript.txt");
 
     assert(r2.kind == StopReason::Kind::Sentinel);
