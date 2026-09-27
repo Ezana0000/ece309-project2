@@ -50,6 +50,9 @@ private:
 class CaptureOutput : public OutputSink {
 public:
     void write(std::string_view text) override { text_ += text; }
+    const std::string& text() const { return text_; }
+
+private:
     std::string text_;
 };
 
@@ -98,8 +101,7 @@ void test_empty_conversation() {
     assert(c.begin() == nullptr);
 
     int count = 0;
-    for (const Message& m : c) {
-        (void)m;
+    for (const Message* p = c.begin(); p != c.end(); ++p) {
         count++;
     }
     assert(count == 0);
@@ -381,10 +383,10 @@ void test_harness_sentinel_halt() {
     assert(r.kind == StopReason::Kind::Sentinel);
     assert(h.conversation().size() == 4);
     assert(h.conversation().at(3).content() == "Goodbye." + kSentinel);
-    assert(out.text_.find(kSentinel) == std::string::npos);
-    assert(out.text_.find("<|") == std::string::npos);
-    assert(out.text_.find("IGNORED") == std::string::npos);
-    assert(out.text_.find("Goodbye.") != std::string::npos);
+    assert(out.text().find(kSentinel) == std::string::npos);
+    assert(out.text().find("<|") == std::string::npos);
+    assert(out.text().find("IGNORED") == std::string::npos);
+    assert(out.text().find("Goodbye.") != std::string::npos);
 }
 
 // EOF gives UserExit and running out of script gives ClientError.
@@ -448,7 +450,7 @@ void test_transcript_round_trip() {
         assert(a.at(i).role() == b.at(i).role());
         assert(a.at(i).content() == b.at(i).content());
     }
-    assert(out1.text_ == out2.text_);
+    assert(out1.text() == out2.text());
 }
 
 int main() {
