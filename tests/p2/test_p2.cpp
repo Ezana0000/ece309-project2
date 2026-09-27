@@ -255,19 +255,19 @@ void test_growth_doubles() {
 void test_scanner_clean_text() {
     SentinelScanner s(kSentinel);
     std::string text = "Hello there, this reply has no stop marker at all.";
-    auto out = s.feed(text);
-    auto rest = s.flush();
+    SentinelScanner::Out out = s.feed(text);
+    SentinelScanner::Out rest = s.flush();
     assert(!out.sentinel_found);
     assert(!rest.sentinel_found);
     assert(out.safe_text + rest.safe_text == text);
 
     SentinelScanner s2(kSentinel);
-    auto o2 = s2.feed("hi");
+    SentinelScanner::Out o2 = s2.feed("hi");
     assert(o2.safe_text == "");
     assert(s2.flush().safe_text == "hi");
 
     SentinelScanner s3(kSentinel);
-    auto o3 = s3.feed("Goodbye." + kSentinel);
+    SentinelScanner::Out o3 = s3.feed("Goodbye." + kSentinel);
     assert(o3.sentinel_found);
     assert(o3.safe_text == "Goodbye.");
 }
@@ -277,8 +277,8 @@ void test_scanner_every_boundary() {
     const std::string text = "Goodbye." + kSentinel;
     for (std::size_t split = 0; split <= text.size(); ++split) {
         SentinelScanner scanner(kSentinel);
-        auto out1 = scanner.feed(text.substr(0, split));
-        auto out2 = scanner.feed(text.substr(split));
+        SentinelScanner::Out out1 = scanner.feed(text.substr(0, split));
+        SentinelScanner::Out out2 = scanner.feed(text.substr(split));
         assert((out1.sentinel_found || out2.sentinel_found) &&
                "sentinel must be caught regardless of split point");
         assert(out1.safe_text + out2.safe_text == "Goodbye.");
@@ -293,7 +293,7 @@ void test_scanner_every_chunk_size() {
         std::string printed;
         bool found = false;
         for (std::size_t i = 0; i < text.size() && !found; i += chunk) {
-            auto out = s.feed(text.substr(i, chunk));
+            SentinelScanner::Out out = s.feed(text.substr(i, chunk));
             printed += out.safe_text;
             found = out.sentinel_found;
         }
@@ -315,11 +315,11 @@ void test_scanner_no_false_alarms() {
         SentinelScanner s(kSentinel);
         std::string printed;
         for (char ch : text) {
-            auto out = s.feed(std::string(1, ch));
+            SentinelScanner::Out out = s.feed(std::string(1, ch));
             assert(!out.sentinel_found);
             printed += out.safe_text;
         }
-        auto rest = s.flush();
+        SentinelScanner::Out rest = s.flush();
         assert(!rest.sentinel_found);
         assert(printed + rest.safe_text == text);
     }
@@ -336,7 +336,7 @@ void test_scanner_bounded_memory() {
     std::size_t emitted = 0;
     std::size_t max_held = 0;
     for (std::size_t i = 0; i < total; ++i) {
-        auto out = s.feed(std::string(1, pattern[i % pattern.size()]));
+        SentinelScanner::Out out = s.feed(std::string(1, pattern[i % pattern.size()]));
         assert(!out.sentinel_found);
         fed++;
         emitted += out.safe_text.size();
@@ -346,13 +346,13 @@ void test_scanner_bounded_memory() {
     }
     assert(max_held == bound);
 
-    auto rest = s.flush();
+    SentinelScanner::Out rest = s.flush();
     assert(rest.safe_text.size() == bound);
     assert(emitted + rest.safe_text.size() == total);
 
     SentinelScanner s2(kSentinel);
     std::string big(100000, 'x');
-    auto out = s2.feed(big);
+    SentinelScanner::Out out = s2.feed(big);
     assert(big.size() - out.safe_text.size() == bound);
 }
 
