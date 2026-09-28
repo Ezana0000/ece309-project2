@@ -70,6 +70,15 @@ private:
     std::string path_;
 };
 
+const char* role_name(Role role) {
+    switch (role) {
+        case Role::System: return "system";
+        case Role::User: return "user";
+        case Role::Assistant: return "assistant";
+    }
+    return "assistant";
+}
+
 // Copy of save_transcript() from main.cpp, since that one isn't accessible here.
 void save_transcript(const Conversation& conv, const std::string& path) {
     std::ofstream file(path);
@@ -77,10 +86,8 @@ void save_transcript(const Conversation& conv, const std::string& path) {
     for (const Message* m = conv.begin(); m != conv.end(); ++m) {
         if (!first) file << "---\n";
         first = false;
-        std::string role = "assistant";
-        if (m->role() == Role::System) role = "system";
-        if (m->role() == Role::User) role = "user";
-        file << "role: " << role << "\n" << m->content() << "\n";
+        file << "role: " << role_name(m->role()) << "\n";
+        file << m->content() << "\n";
     }
 }
 
